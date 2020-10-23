@@ -853,7 +853,7 @@ parse_cluster_slots(redisClusterContext *cc,
             }else{
                 elem_nodes = elem_slots->element[idx];
                 if(elem_nodes->type != REDIS_REPLY_ARRAY || 
-                    elem_nodes->elements != 3){
+                    elem_nodes->elements < 2){
                     __redisClusterSetError(cc, REDIS_ERR_OTHER, 
                         "Command(cluster slots) reply error: "
                         "nodes sub_reply is not an correct array.");
@@ -1249,6 +1249,36 @@ error:
     return NULL;
 }
 
+int auth(redisClusterContext *cc, redisContext *c) {
+    if (cc == NULL || c == NULL) {
+        return REDIS_ERR;
+    }
+
+    if (cc->auth[0] == 0) {
+        return REDIS_OK;
+    }
+
+    redisReply *reply = NULL;
+    reply = redisCommand(c, "AUTH %s", cc->auth);
+    if (reply == NULL) {
+        __redisClusterSetError(cc, REDIS_ERR_OTHER, "AUTH reply NULL");
+        goto error;
+    }
+
+    if (reply->type == REDIS_REPLY_ERROR) {
+        __redisClusterSetError(cc, REDIS_ERR_OTHER, reply->str);
+        goto error;
+    }
+
+    return REDIS_OK;
+error:
+    if (reply != NULL) {
+        freeReplyObject(reply);
+        reply = NULL;
+    }
+    return REDIS_ERR;
+}
+
 /**
   * Update route with the "cluster nodes" or "cluster slots" command reply.
   */
@@ -1296,6 +1326,10 @@ cluster_update_route_by_addr(redisClusterContext *cc,
 
     if (cc->timeout) {
         redisSetTimeout(c, *cc->timeout);
+    }
+
+    if (REDIS_OK != auth(cc, c)) {
+        goto error;
     }
 
     if(cc->flags & HIRCLUSTER_FLAG_ROUTE_USE_SLOTS){
@@ -1544,6 +1578,10 @@ cluster_update_route_with_nodes_old(redisClusterContext *cc,
     else if(c->err)
     {
         __redisClusterSetError(cc,c->err,c->errstr);
+        goto error;
+    }
+
+    if (REDIS_OK != auth(cc, c)) {
         goto error;
     }
 
@@ -2033,7 +2071,9 @@ redisClusterContext *redisClusterContextInit(void) {
     memset(cc->table, 0, REDIS_CLUSTER_SLOTS*sizeof(cluster_node *));
 
     cc->flags |= REDIS_BLOCK;
-    
+
+    cc->auth[0] = 0;
+
     return cc;
 }
 
@@ -2300,6 +2340,16 @@ int redisClusterSetOptionAddNodes(redisClusterContext *cc, const char *addrs)
     return REDIS_OK;
 }
 
+int redisClusterSetOptionSetAuth(redisClusterContext *cc, const char *auth) {
+    if(cc == NULL || auth == NULL) {
+        return REDIS_ERR;
+    }
+
+    strncpy(cc->auth, auth, sizeof(cc->auth) - 1);
+    cc->auth[sizeof(cc->auth) - 1] = 0;
+    return REDIS_OK;
+}
+
 int redisClusterSetOptionConnectBlock(redisClusterContext *cc)
 {
 
@@ -2505,6 +2555,10 @@ redisContext *ctx_get_by_node(redisClusterContext *cc, cluster_node *node)
 
     if (cc->timeout && c != NULL && c->err == 0) {
         redisSetTimeout(c, *cc->timeout);
+    }
+
+    if (REDIS_OK != auth(cc, c)) {
+        c = NULL;
     }
 
     node->con = c;

@@ -98,6 +98,8 @@ typedef struct redisClusterContext {
 
     int need_update_route;
     int64_t update_route_time;
+
+    char auth[128];
 } redisClusterContext;
 
 redisClusterContext *redisClusterConnect(const char *addrs, int flags);
@@ -110,6 +112,7 @@ void redisClusterFree(redisClusterContext *cc);
 
 int redisClusterSetOptionAddNode(redisClusterContext *cc, const char *addr);
 int redisClusterSetOptionAddNodes(redisClusterContext *cc, const char *addrs);
+int redisClusterSetOptionSetAuth(redisClusterContext *cc, const char *auth);
 int redisClusterSetOptionConnectBlock(redisClusterContext *cc);
 int redisClusterSetOptionConnectNonBlock(redisClusterContext *cc);
 int redisClusterSetOptionParseSlaves(redisClusterContext *cc);
