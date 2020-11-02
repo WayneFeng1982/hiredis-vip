@@ -6,7 +6,7 @@
 #include "async.h"
 
 #define HIREDIS_VIP_MAJOR 1
-#define HIREDIS_VIP_MINOR 0
+#define HIREDIS_VIP_MINOR 1
 #define HIREDIS_VIP_PATCH 0
 
 #define REDIS_CLUSTER_SLOTS 16384
